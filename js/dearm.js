@@ -24,19 +24,6 @@ var CM = function() {
   };
 } ();
 
-function padZeroes(val, length) {
-  while(val.length < length) {
-    val = '0' + val;
-  }
-  return val;
-}
-function bit_ror(val, n) {
-  return (val >>> n) | (val << (32 - n) & 0xFFFFFFFF);
-}
-CM.NetMan = function() {
-  return {
-  };
-}();
 CM.UIManager = function() {
   var clean = function() {
   };
