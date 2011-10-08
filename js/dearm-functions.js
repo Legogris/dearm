@@ -1,10 +1,14 @@
 Format = function(i) {
+  i.rn = i.rn !== undefined ? Registers[i.rn] : undefined;
+  i.rd = i.rd !== undefined ? Registers[i.rd] : undefined;
+  i.rm = i.rm !== undefined ? Registers[i.rm] : undefined;
+  i.rs = i.rs !== undefined ? Registers[i.rs] : undefined;
   var ins = i.mem + 
     (i.cond ? i.cond : '') + 
     (i.halfWord ? 'H' : i.byte ? 'B' : '') + 
     (i.setsFlags ? 'S' : '') +
     '\t' + 
-    (i.rd !== undefined ? 'r' + i.rd + ', ' : '');
+    (i.rd !== undefined ? i.rd + ', ' : '');
   switch(i.aMode) {
     case 1:
       switch(i.mem) {
@@ -67,7 +71,7 @@ Format = function(i) {
         case 'CMP':
         case 'TEQ':
         case 'TST':
-          ins += (i.rn !== undefined ? 'r' + i.rn + ', ': ''); 
+          ins += (i.rn !== undefined ? i.rn + ', ': ''); 
           break;
         case 'QADD': // QADD{<cond>} <Rd>, <Rm>, <Rn>
         case 'QDADD':
@@ -75,8 +79,8 @@ Format = function(i) {
         case 'QSUB':
         case 'STREX':
         case 'SWP':
-          ins += (i.rm !== undefined ? 'r' + i.rm + ', ': '') + 
-            (i.rn !== undefined ? 'r' + i.rn + ', ': '');
+          ins += (i.rm !== undefined ? i.rm + ', ': '') + 
+            (i.rn !== undefined ? i.rn + ', ': '');
           break;
         default:
           ins += '//undefined, rn' + i.rn + ', rd' + i.rd + ', rm' + i.rm;
@@ -93,7 +97,7 @@ Format = function(i) {
             ins += ' //todoImm';
             break;
           case Encodings.RegShift:
-            ins += 'r' + i.rm;
+            ins += i.rm;
             break;
           default:
             ins += '//mystery: ' + i.encoding;
@@ -104,21 +108,23 @@ Format = function(i) {
       var addr = '[';
       switch(i.offsetType) {
         case Offsets.Imm:
-          if(i.rn == '15' && !i.postIndexing && !i.preIndexing) {
+          if(i.rn == 'pc' && !i.postIndexing && !i.preIndexing) {
             var pc = (i.address + 8); 
             pc += i.offsetOperator == '-' ? -i.offset_12 : i.offset_12; 
             addr += '$' + padZeroes(pc.toString(16), 8);
           } else {
-            addr += 'r' + i.rn;
+            addr += i.rn;
             if(i.postIndexing) {
               addr += ']';
             }
-            addr += ', #' + i.offsetOperator + '0x' + i.offset_12.toString(16);
+            if(i.offset_12) {
+              addr += ', #' + i.offsetOperator + '0x' + i.offset_12.toString(16);
+            }
           }
           break;
         case Offsets.Reg:
         case Offsets.Scaled:
-          addr = 'r' + i.rn + (i.postIndexing ? '], ' : ', ') + i.offsetOperator + 'r' + i.rm;
+          addr = i.rn + (i.postIndexing ? '], ' : ', ') + i.offsetOperator + i.rm;
           if(i.offsetType == Offsets.Scaled) {
             addr += ', ' + i.shift + '#0x' + i.immediate.toString(16);
           }
