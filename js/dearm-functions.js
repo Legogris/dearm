@@ -5,6 +5,7 @@ Format = function(i) {
   i.rs = i.rs !== undefined ? Registers[i.rs] : undefined;
   var ins = i.mem + 
     (i.cond ? i.cond : '') + 
+    (i.am ? i.am : '') + 
     (i.halfWord ? 'H' : i.byte ? 'B' : '') + 
     (i.setsFlags ? 'S' : '') +
     '\t' + 
@@ -137,6 +138,17 @@ Format = function(i) {
         }
       }
       ins += addr;
+      break;
+    case 4:
+      ins += i.rn + 
+        (i.preIndexing ? '!' : '') + ', {';
+      var first = true;
+      i.regList.each(function(r, i) {
+        if(first) { first = false; } else { ins += ', '; }
+        ins += r;
+      });
+      ins += '}' +
+        (i.sBit ? '^' : '');
       break;
     default:
       break;

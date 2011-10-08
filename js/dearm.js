@@ -57,6 +57,9 @@ CM.UIManager = function() {
           var offsetType = undefined;
           var state = States.beforeIns;
           var shift = undefined;
+          var am = undefined;
+          var sBit = undefined;
+          var regList = undefined;
           while(state != States.afterIns) {
             bits = '';
             switch(state) {
@@ -66,7 +69,7 @@ CM.UIManager = function() {
                 state = States.beforeCond;
                 break;
               case States.beforeCond:
-                var condBits = insBits.slice(0, 3);
+                var condBits = insBits.slice(0, 4);
                 var cond = condBits.slice(0, 3) == '111' ? null : Conditions[condBits];
                 state = States.afterCond;
                 break;
@@ -91,6 +94,13 @@ CM.UIManager = function() {
                     }
                     break;
                   case '10':
+                    if(immediate) {
+                      state = States.unimplemented; //B / BL
+                    } else {
+                      aMode = 4;
+                      state = States.beforeLDRSTR;
+                    }
+                    break;
                   case '11':
                     state = States.unimplemented; //yet to be defined
                     break;
@@ -100,8 +110,12 @@ CM.UIManager = function() {
                 bits = insBits.slice(7, 11);
                 mem = OpCodes[bits];   
                 setsFlags = parseInt(insBits[11], 2) == 1;
-                if(bits.slice(0, 2) == '10' && !setsFlags) { //CMP, CMN, TST or TEQ
-                  state = States.unimplemented; //Move immediate to status register
+                if(bits.slice(0, 2) == '10') { //CMP, CMN, TST or TEQ
+                  if(setsFlags) { 
+                    setsFlags = false;  //Always set flags so no need to specify - the only thing this is used for ATM is setting S
+                  } else {
+                    state = States.unimplemented; //Move immediate to status register
+                  }
                 }
                 //console.log(mem + " @ " + a);
                 state = States.afterDP;
@@ -110,25 +124,37 @@ CM.UIManager = function() {
                 state = States.beforeRn;
                 break;
               case States.beforeLDRSTR:
-                bits = insBits.slice(6, 12);
-                if(bits[0] == '0') {
-                  offsetType = Offsets.Imm;
+                bits = insBits.slice(7, 12);
+                mem = ['ST', 'LD'][parseInt(bits[4], 2)];
+                var preIndexing = bits[3] == '1';
+                switch(aMode) {
+                  case 2:  //Normal LDR / STR
+                    mem += 'R';
+                    if(!immediate) {
+                      offsetType = Offsets.Imm;
+                    }
+                    var postIndexing = bits[0] == '0';
+                    if(postIndexing && preIndexing) { //Bit 21 has different meaning under post-indexing
+                      mem += 'T';
+                      preIndexing = false;
+                    }
+                    var offsetOperator = bits[1] == '0' ? '-' : '+';
+                    if(bits[2] == '1') {
+                      mem += 'B';
+                    }
+                    state = States.beforeRn;
+                    break;
+                  case 4: //LDM/STM
+                    mem += 'M';
+                    am = ['D', 'I'][parseInt(bits[1], 2)];
+                    am += ['A', 'B'][parseInt(bits[0], 2)];
+                    sBit = parseInt(bits[2], 2);
+                    state = States.beforeRn;
+                    break;
+                  default:
+                    state = States.unimplemented;
+                    break;
                 }
-                var postIndexing = bits[1] == '0';
-                var preIndexing = false;
-                var offsetOperator = bits[2] == '0' ? '-' : '+';
-                mem = bits[5] == '0' ? 'STR' : 'LDR';
-                if(bits[3] == '1') {
-                  mem += 'B';
-                }
-                if(bits[4] == '1') {
-                  if(postIndexing) {
-                    mem += 'T';
-                  } else {
-                    preIndexing = true;
-                  }
-                } 
-                state = States.beforeRn;
                 break;
               case States.beforeRn:
                 bits = insBits.slice(12, 16);
@@ -136,11 +162,20 @@ CM.UIManager = function() {
                 state = States.afterRn;
                 break;
               case States.afterRn:
-                if(aMode == 1 && insBits.slice(7, 9) == '10') {
-                  state = States.afterRd;
-                  break;
-                } ////CMP, CMN, TST or TEQ does not have Rd
-                state = States.beforeRd; 
+                switch(aMode) {
+                  case 1:
+                    if(insBits.slice(7, 9) == '10') {
+                      state = States.afterRd;       ////CMP, CMN, TST or TEQ does not have Rd
+                      break;
+                    }
+                    state = States.beforeRd;
+                    break;
+                  case 4:
+                    state = States.beforeRegList;
+                    break;
+                  default:
+                    state = States.beforeRd;
+                } 
                 break;
               case States.beforeRd:
                 bits = insBits.slice(16, 20);
@@ -168,6 +203,16 @@ CM.UIManager = function() {
                     state = States.unimplemented;
                     break;
                 }
+                break;
+              case States.beforeRegList:
+                var regBits = insBits.slice(16, 32);
+                regList = [];
+                for(var j = 0; j < regBits.length; j++) {
+                  if(regBits[regBits.length - j - 1] == '1') {
+                    regList.push(Registers[j]);
+                  }
+                }
+                state = States.finished;
                 break;
               case States.beforeShift:
                 bits = insBits.slice(20, 32);
@@ -215,7 +260,7 @@ CM.UIManager = function() {
                 state = States.finished;
                 break;
               case States.finished:
-                ins = Format( { aMode: aMode, mem: mem, setsFlags: setsFlags, cond: cond, rotate: rotate, rd: rd, rn: rn, rm: rm, immediate: immediate, encoding: encoding, offsetOperator: offsetOperator, offset_12: offset_12, shift: shift, offsetType: offsetType, address: a});
+                ins = Format( { aMode: aMode, mem: mem, setsFlags: setsFlags, cond: cond, rotate: rotate, rd: rd, rn: rn, rm: rm, immediate: immediate, encoding: encoding, offsetOperator: offsetOperator, offset_12: offset_12, shift: shift, offsetType: offsetType, address: a, am : am, regList: regList, sBit: sBit, preIndexing: preIndexing, postIndexing: postIndexing});
                 result.push(ins);
                 state = States.afterIns;
                 break;

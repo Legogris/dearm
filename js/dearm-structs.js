@@ -20,6 +20,7 @@ States = {
   afterShift: 18,
   beforeLDRSTR: 19,
   beforeOffset_12: 20,
+  beforeRegList: 21,
 };
 
 Conditions = {
@@ -78,8 +79,8 @@ Registers = [
 'r8',
 'r9',
 'r10',
-'r11',
-'r12',
+'fp',
+'ip',
 'sp',
 'lr',
 'pc'
