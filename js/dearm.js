@@ -102,7 +102,11 @@ CM.UIManager = function() {
                     }
                     break;
                   case '11':
-                    state = States.unimplemented; //yet to be defined
+                    if(immediate) {
+                      state = States.beforeSWI;
+                    } else {
+                      state = States.unimplemented; // TODO:Coprocessor DP and register transfer 
+                    }
                     break;
                 }
                 break;
@@ -161,6 +165,12 @@ CM.UIManager = function() {
                 bits = insBits.slice(8, 32);
                 var offset = ( bits[0] == '1' ? -(0x1000000 - parseInt(bits, 2)) : parseInt(bits, 2) ) << 2;
                 immediate = a+8+offset;
+                state = States.finished;
+                break;
+              case States.beforeSWI:
+                mem = 'SWI';
+                bits = insBits.slice(8, 32);
+                immediate = parseInt(bits, 2);
                 state = States.finished;
                 break;
               case States.beforeRn:
