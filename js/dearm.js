@@ -95,7 +95,7 @@ CM.UIManager = function() {
                     break;
                   case '10':
                     if(immediate) {
-                      state = States.unimplemented; //B / BL
+                      state = States.beforeBranch;
                     } else {
                       aMode = 4;
                       state = States.beforeLDRSTR;
@@ -155,6 +155,13 @@ CM.UIManager = function() {
                     state = States.unimplemented;
                     break;
                 }
+                break;
+              case States.beforeBranch:
+                mem = insBits[7] == '1' ? 'BL' : 'B';
+                bits = insBits.slice(8, 32);
+                var offset = ( bits[0] == '1' ? -(0x1000000 - parseInt(bits, 2)) : parseInt(bits, 2) ) << 2;
+                immediate = a+8+offset;
+                state = States.finished;
                 break;
               case States.beforeRn:
                 bits = insBits.slice(12, 16);

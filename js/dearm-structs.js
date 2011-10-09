@@ -21,6 +21,7 @@ States = {
   beforeLDRSTR: 19,
   beforeOffset_12: 20,
   beforeRegList: 21,
+  beforeBranch: 22
 };
 
 Conditions = {

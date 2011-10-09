@@ -150,7 +150,8 @@ Format = function(i) {
       ins += '}' +
         (i.sBit ? '^' : '');
       break;
-    default:
+    default: //B, BL
+      ins += '0x' + i.immediate.toString(16);
       break;
   };
   return ins;
