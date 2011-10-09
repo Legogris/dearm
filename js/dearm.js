@@ -60,6 +60,8 @@ CM.UIManager = function() {
           var am = undefined;
           var sBit = undefined;
           var regList = undefined;
+          var dataType = undefined;
+          var offset = undefined;
           while(state != States.afterIns) {
             bits = '';
             switch(state) {
@@ -79,7 +81,12 @@ CM.UIManager = function() {
                 switch(bits) {
                   case '00':
                     if(!immediate && insBits[24] == '1' && insBits[27] == '1') {
-                      state = States.unimplemented;
+                      if(insBits[25] == '0' && insBits[26] == '0') {
+                        state = States.unimplemented; // Multiply / SWP
+                      } else {
+                        state = States.beforeLDRSTR;
+                        aMode = 3;
+                      }
                     } else {
                       state = States.beforeDP;
                       aMode = 1;
@@ -113,7 +120,7 @@ CM.UIManager = function() {
               case States.beforeDP: //Data processing
                 bits = insBits.slice(7, 11);
                 mem = OpCodes[bits];   
-                setsFlags = parseInt(insBits[11], 2) == 1;
+                setsFlags = parseInt(insBits[11], 2);
                 if(bits.slice(0, 2) == '10') { //CMP, CMN, TST or TEQ
                   if(setsFlags) { 
                     setsFlags = false;  //Always set flags so no need to specify - the only thing this is used for ATM is setting S
@@ -131,20 +138,28 @@ CM.UIManager = function() {
                 bits = insBits.slice(7, 12);
                 mem = ['ST', 'LD'][parseInt(bits[4], 2)];
                 var preIndexing = bits[3] == '1';
+                var offsetOperator = bits[1] == '0' ? '-' : '+';
+                var postIndexing = bits[0] == '0';
                 switch(aMode) {
                   case 2:  //Normal LDR / STR
                     mem += 'R';
                     if(!immediate) {
                       offsetType = Offsets.Imm;
                     }
-                    var postIndexing = bits[0] == '0';
+                    dataType = ['', 'B'][parseInt(bits[2], 0)];
                     if(postIndexing && preIndexing) { //Bit 21 has different meaning under post-indexing
-                      mem += 'T';
+                      dataType += 'T'; //Unprivileged access
                       preIndexing = false;
                     }
-                    var offsetOperator = bits[1] == '0' ? '-' : '+';
-                    if(bits[2] == '1') {
-                      mem += 'B';
+                    state = States.beforeRn;
+                    break;
+                  case 3: // H/SH/SB
+                    mem += 'R';
+                    offsetType = [Offsets.Reg, Offsets.Imm][parseInt(bits[2], 2)];
+                    if(postIndexing && preIndexing) {
+                      mem = 'UNPREDICTABLE';
+                      state = States.finished;
+                      break;
                     }
                     state = States.beforeRn;
                     break;
@@ -204,8 +219,8 @@ CM.UIManager = function() {
                   case 1:
                     if(immediate) {
                       encoding = Encodings.Imm;
-                    } else { //before: 27 == 1
-                      encoding = insBits[6] == '0' ? Encodings.RegShift : Encodings.ImmShift;
+                    } else {
+                      encoding = insBits[27] == '1' ? Encodings.RegShift : Encodings.ImmShift;
                     }
                     state = States.beforeShift;
                     break;
@@ -214,6 +229,17 @@ CM.UIManager = function() {
                       state = States.beforeOffset_12;
                     } else {
                       state = States.beforeShift;
+                    }
+                    break;
+                  case 3:
+                    bits = insBits.slice(20, 32);
+                    dataType = ['B', 'H', 'SB', 'SH'][parseInt(bits.slice(5,7), 2)];
+                    if(offsetType == Offsets.Imm) {
+                      encoding = Encodings.Imm;
+                      state = States.beforeOffset_8;
+                    } else { //Register offset
+                      encoding = Encodings.Reg;
+                      state = States.beforeRm;
                     }
                     break;
                   default:
@@ -235,14 +261,25 @@ CM.UIManager = function() {
                 bits = insBits.slice(20, 32);
                 switch(aMode) {
                   case 1:
-                    if(encoding == Encodings.Imm) {
-                      immediate = parseInt(bits.slice(4, 12), 2);
-                      rotate = parseInt(bits.slice(0, 4), 2);
-                      state = States.afterShift;
-                      break;
+                    switch(encoding) {
+                      case Encodings.Imm:
+                        immediate = parseInt(bits.slice(4, 12), 2);
+                        rotate = parseInt(bits.slice(0, 4), 2);
+                        state = States.finished;
+                        break;
+                      case Encodings.ImmShift:
+                        shift = Shifts[bits.slice(5, 7)];
+                        immediate = parseInt(bits.slice(0, 5), 2);
+                        state = States.beforeRm;
+                        break;
+                      case Encodings.RegShift:
+                        shift = Shifts[bits.slice(5, 7)];
+                        rs = parseInt(bits.slice(0, 4), 2);
+                        state = States.beforeRm;
+                        break;
                     }
+                    break;
                   case 2:
-                    rm = parseInt(bits.slice(8, 12), 2);
                     bits = bits.slice(0, 8);
                     if(bits == '00000000') {
                       offsetType = Offsets.Reg;
@@ -258,18 +295,24 @@ CM.UIManager = function() {
                         }
                       }
                     }
-                    state = States.afterShift;
+                    state = States.beforeRm;
                     break;
                   default:    
                     state = States.unimplemented;
                 }
                 break;
-              case States.afterShift:
+              case States.beforeOffset_8:
+                offset = parseInt(insBits.slice(20, 24)+insBits.slice(28, 32), 2);
                 state = States.finished;
                 break;
               case States.beforeOffset_12: 
                 bits = insBits.slice(20, 32);
-                var offset_12 = parseInt(bits, 2);
+                offset = parseInt(bits, 2);
+                state = States.finished;
+                break;
+              case States.beforeRm:
+                bits = insBits.slice(28, 32);
+                rm = parseInt(bits, 2);
                 state = States.finished;
                 break;
               case States.unimplemented:
@@ -277,7 +320,7 @@ CM.UIManager = function() {
                 state = States.finished;
                 break;
               case States.finished:
-                ins = Format( { aMode: aMode, mem: mem, setsFlags: setsFlags, cond: cond, rotate: rotate, rd: rd, rn: rn, rm: rm, immediate: immediate, encoding: encoding, offsetOperator: offsetOperator, offset_12: offset_12, shift: shift, offsetType: offsetType, address: a, am : am, regList: regList, sBit: sBit, preIndexing: preIndexing, postIndexing: postIndexing});
+                ins = Format( { aMode: aMode, mem: mem, setsFlags: setsFlags, cond: cond, rotate: rotate, rd: rd, rn: rn, rm: rm, rs: rs, immediate: immediate, encoding: encoding, offsetOperator: offsetOperator, offset: offset, shift: shift, offsetType: offsetType, address: a, am : am, regList: regList, sBit: sBit, preIndexing: preIndexing, postIndexing: postIndexing, dataType: dataType});
                 result.push(ins);
                 state = States.afterIns;
                 break;
@@ -299,7 +342,7 @@ CM.UIManager = function() {
         $('result').set('html', asm);
       } catch(ex) {
         alert('fail');
-        console.log("error: " + ex);
+        console.log("error: " + ex.stack);
       }
     };
     reader.onerror = function(e, er) {

@@ -22,7 +22,8 @@ States = {
   beforeOffset_12: 20,
   beforeRegList: 21,
   beforeBranch: 22,
-  beforeSWI: 23
+  beforeSWI: 23,
+  beforeOffset_8: 24,
 };
 
 Conditions = {
@@ -91,7 +92,8 @@ Registers = [
 Encodings = {
   Imm: 0,
   ImmShift: 1,
-  RegShift: 2
+  Reg: 2,
+  RegShift: 3
 };
 
 Offsets = {

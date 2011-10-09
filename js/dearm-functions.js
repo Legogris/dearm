@@ -5,6 +5,7 @@ Format = function(i) {
   i.rs = i.rs !== undefined ? Registers[i.rs] : undefined;
   var ins = i.mem + 
     (i.cond ? i.cond : '') + 
+    (i.dataType ? i.dataType : '') + 
     (i.am ? i.am : '') + 
     (i.halfWord ? 'H' : i.byte ? 'B' : '') + 
     (i.setsFlags ? 'S' : '') +
@@ -94,11 +95,10 @@ Format = function(i) {
             ins += '#0x' + (i.rotate ? bit_ror(i.immediate, i.rotate*2).toString(16) : i.immediate.toString(16));
             break;
           case Encodings.ImmShift:
-            //TODO
-            ins += ' //todoImm';
+            ins += i.rm + (i.immediate ? ' ' + i.shift + ' #0x' + i.immediate.toString(16) : '');
             break;
           case Encodings.RegShift:
-            ins += i.rm;
+            ins += i.rm + ' ' + i.shift + ' ' + i.rs;
             break;
           default:
             ins += '//mystery: ' + i.encoding;
@@ -106,26 +106,27 @@ Format = function(i) {
         }
       break;
     case 2:
+    case 3:
       var addr = '[';
       switch(i.offsetType) {
         case Offsets.Imm:
           if(i.rn == 'pc' && !i.postIndexing && !i.preIndexing) {
             var pc = (i.address + 8); 
-            pc += i.offsetOperator == '-' ? -i.offset_12 : i.offset_12; 
+            pc += i.offsetOperator == '-' ? -i.offset : i.offset; 
             addr += '$' + padZeroes(pc.toString(16), 8);
           } else {
             addr += i.rn;
             if(i.postIndexing) {
               addr += ']';
             }
-            if(i.offset_12) {
-              addr += ', #' + i.offsetOperator + '0x' + i.offset_12.toString(16);
+            if(i.offset) {
+              addr += ', #' + i.offsetOperator + '0x' + i.offset.toString(16);
             }
           }
           break;
         case Offsets.Reg:
         case Offsets.Scaled:
-          addr = i.rn + (i.postIndexing ? '], ' : ', ') + i.offsetOperator + i.rm;
+          addr += i.rn + (i.postIndexing ? '], ' : ', ') + i.offsetOperator + i.rm;
           if(i.offsetType == Offsets.Scaled) {
             addr += ', ' + i.shift + '#0x' + i.immediate.toString(16);
           }
@@ -151,7 +152,7 @@ Format = function(i) {
         (i.sBit ? '^' : '');
       break;
     default: //B, BL
-      ins += '0x' + i.immediate.toString(16);
+      ins += '0x' + padZeroes(i.immediate.toString(16), 8);
       break;
   };
   return ins;
@@ -159,10 +160,10 @@ Format = function(i) {
 
 
 var padZeroes = function(val, length) {
-    while(val.length < length) {
-          val = '0' + val;
-            }
-              return val;
+  while(val.length < length) {
+    val = '0' + val;
+  }
+  return val;
 };
 
 var bit_ror = function(val, n) {
