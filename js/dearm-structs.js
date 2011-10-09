@@ -24,6 +24,7 @@ States = {
   beforeBranch: 22,
   beforeSWI: 23,
   beforeOffset_8: 24,
+  beforeControlExtension: 25,
 };
 
 Conditions = {

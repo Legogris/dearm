@@ -125,13 +125,21 @@ CM.UIManager = function() {
                   if(setsFlags) { 
                     setsFlags = false;  //Always set flags so no need to specify - the only thing this is used for ATM is setting S
                   } else {
-                    state = States.unimplemented; //Move immediate to status register
+                    aMode = 0;
+                    state = States.beforeControlExtension; //MRS, BX etc
                   }
                 }
                 //console.log(mem + " @ " + a);
                 state = States.afterDP;
                 break;
               case States.afterDP:
+                state = States.beforeRn;
+                break;
+              case States.beforeControlExtension:
+                if(insBits[6] == '1') {
+                  mem = 'MSR';
+                  immediate = true;
+                } 
                 state = States.beforeRn;
                 break;
               case States.beforeLDRSTR:
@@ -243,7 +251,12 @@ CM.UIManager = function() {
                     }
                     break;
                   default:
-                    state = States.unimplemented;
+                    if(immediate) {
+                      //TODO: rotate_imm & immed_8 for MSR
+                      state = States.unimplemented;
+                    } else {
+                      state = States.beforeShift;
+                    }
                     break;
                 }
                 break;
@@ -298,6 +311,7 @@ CM.UIManager = function() {
                     state = States.beforeRm;
                     break;
                   default:    
+                    //TODO: Rs for Control instruction extension space
                     state = States.unimplemented;
                 }
                 break;
