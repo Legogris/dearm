@@ -73,7 +73,7 @@ Format = function(i) {
         case 'CMP':
         case 'TEQ':
         case 'TST':
-          ins += (i.rn !== undefined ? i.rn + ', ': ''); 
+          ins += (i.rn !== undefined && i.rn != i.rd ? i.rn + ', ': ''); 
           break;
         case 'QADD': // QADD{<cond>} <Rd>, <Rm>, <Rn>
         case 'QDADD':
