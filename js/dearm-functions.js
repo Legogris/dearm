@@ -12,6 +12,16 @@ Format = function(i) {
     '\t' + 
     (i.rd !== undefined ? i.rd + ', ' : '');
   switch(i.aMode) {
+    case 0:
+      switch(i.mem) {
+        case 'BX':
+        case 'BLX':
+          ins += i.rm;
+          break;
+        default:
+          break;
+      }
+      break;
     case 1:
       switch(i.mem) {
         case 'MOV':     //MOV{<cond>}{S} <Rd>, <shifter_operand>

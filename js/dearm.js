@@ -119,18 +119,20 @@ CM.UIManager = function() {
                 break;
               case States.beforeDP: //Data processing
                 bits = insBits.slice(7, 11);
-                mem = OpCodes[bits];   
                 setsFlags = parseInt(insBits[11], 2);
+                mem = OpCodes[bits];   
+                state = States.afterDP;
                 if(bits.slice(0, 2) == '10') { //CMP, CMN, TST or TEQ
                   if(setsFlags) { 
                     setsFlags = false;  //Always set flags so no need to specify - the only thing this is used for ATM is setting S
                   } else {
                     aMode = 0;
+                    mem = undefined;
                     state = States.beforeControlExtension; //MRS, BX etc
+                    break;
                   }
                 }
                 //console.log(mem + " @ " + a);
-                state = States.afterDP;
                 break;
               case States.afterDP:
                 state = States.beforeRn;
@@ -139,8 +141,39 @@ CM.UIManager = function() {
                 if(insBits[6] == '1') {
                   mem = 'MSR';
                   immediate = true;
+                  state = States.unimplemented; //TODO: MSR
+                } else if(insBits.slice(4, 9) == '00010') {
+                  switch(insBits.slice(24, 28)) {
+                    case '0000':
+                      //TODO: Move status register to register / Move register to status register
+                      state = States.unimplemented;
+                      break
+                    case '0001':
+                      if(insBits[9] == '1') {
+                        mem = 'CLZ';  //TODO: CLZ
+                      } else {
+                        state = States.beforeBX;
+                        break;
+                      }
+                      break;
+                    case '0011':
+                      state = States.beforeBLX;
+                      break;
+                    case '0101':
+                      //TODO: Enhanced DSP add/subtracts
+                    case '0111':
+                      if(cond == null) {
+                        //TODO: Software breakpoint
+                      } else {
+                      }
+                    default:
+                      if(insBits[24] == '1' && insBits[27] == '0') {
+                        state = States.unimplemented; //TODO: Enhanced DLP multiplies
+                      } else {
+                        state = States.unimplemented;
+                      }
+                  }
                 } 
-                state = States.beforeRn;
                 break;
               case States.beforeLDRSTR:
                 bits = insBits.slice(7, 12);
@@ -190,6 +223,14 @@ CM.UIManager = function() {
                 immediate = a+8+offset;
                 state = States.finished;
                 break;
+              case States.beforeBX:
+                mem = 'BX';
+                state = States.beforeRn;
+                break;
+              case States.beforeBLX:
+                mem = 'BLX';
+                state = beforeRn;
+                break;
               case States.beforeSWI:
                 mem = 'SWI';
                 bits = insBits.slice(8, 32);
@@ -203,6 +244,18 @@ CM.UIManager = function() {
                 break;
               case States.afterRn:
                 switch(aMode) {
+                  case 0:
+                    switch(mem) {
+                      case 'BX':
+                      case 'BLX':
+                        state = States.beforeRm;
+                        break;
+                      default: 
+                        //TODO: Others
+                        state = States.unimplemented;
+                        break;
+                    }
+                    break;
                   case 1:
                     if(insBits.slice(7, 9) == '10') {
                       state = States.afterRd;       ////CMP, CMN, TST or TEQ does not have Rd

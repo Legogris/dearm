@@ -25,6 +25,8 @@ States = {
   beforeSWI: 23,
   beforeOffset_8: 24,
   beforeControlExtension: 25,
+  beforeBX: 26,
+  beforeBLX: 27,
 };
 
 Conditions = {
